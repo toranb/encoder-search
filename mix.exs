@@ -32,6 +32,14 @@ defmodule Example.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:csv, "~> 2.4"},
+      {:nimble_csv, "~> 1.2"},
+      {:polaris, "~> 0.1"},
+      {:nx, "~> 0.9"},
+      {:exla, "~> 0.9"},
+      {:tokenizers, "~> 0.4.0"},
+      {:bumblebee, "~> 0.6"},
+      {:pgvector, "~> 0.3.0"},
       {:phoenix, "~> 1.7.20"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.10"},
