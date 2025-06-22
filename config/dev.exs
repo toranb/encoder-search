@@ -1,14 +1,22 @@
 import Config
 
+config :exla, :clients,
+  cuda: [platform: :cuda, preallocate: false],
+  host: [platform: :host]
+
+config :nx, :default_backend, EXLA.Backend
+config :nx, :default_defn_options, [compiler: EXLA, client: :cuda]
+
 # Configure your database
 config :example, Example.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "example_dev",
+  database: "bible_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  types: Example.PostgrexTypes
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -19,7 +27,7 @@ config :example, Example.Repo,
 # Binding to loopback ipv4 address prevents access from other machines.
 config :example, ExampleWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {127, 0, 0, 1}, port: 4500],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

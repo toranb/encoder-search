@@ -1,5 +1,10 @@
 # Data Engineering
 
+## Get JSON for each translation
+curl https://bolls.life/static/translations/NASB.json > nasb.json
+curl https://bolls.life/static/translations/NIV.json > niv.json
+curl https://bolls.life/static/translations/ESV.json > esv.json
+
 ## Generate each csv dataset from JSON
 Example.Dataset.gen_bible("nasb")
 Example.Dataset.gen_bible("niv")
@@ -28,4 +33,13 @@ Example.Prep.shuffle()
 
 # Training
 
-Example.Encoder.scheduled(70, 0.00006)
+Example.Encoder.scheduled(100, 0.00007)
+
+# Seed the database from a given text
+
+Example.Utils.seed("niv")
+Example.Utils.add_embeddings()
+
+# Run the app and search
+
+iex -S mix phx.server
