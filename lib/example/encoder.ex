@@ -1,13 +1,13 @@
 defmodule Example.Encoder do
   import Nx.Defn
 
-  @warmup_steps 18_240
+  @warmup_steps 18_620
   @batch_size 32
   @val_batch_size 64
   @max_token_ids 100
   @attn_dims 768
   @num_heads 12
-  @dropout_rate 0.15
+  @dropout_rate 0.16
   @pad_token_id 1
   @vocab_size 30_522
   @epsilon 1.0e-8
@@ -413,12 +413,12 @@ defmodule Example.Encoder do
     Nx.add(input, output)
   end
 
-  defn dropout(input, key, training) do
+  defn dropout(input, key, training, dropout_rate) do
     if training do
       mask_shape = Nx.shape(input)
       random_vals = Nx.Random.normal_split(key, 0.0, 1.0, shape: mask_shape)
-      keep_mask = Nx.greater(random_vals, @dropout_rate)
-      keep_prob = Nx.subtract(1.0, @dropout_rate)
+      keep_mask = Nx.greater(random_vals, dropout_rate)
+      keep_prob = Nx.subtract(1.0, dropout_rate)
       scale_factor = Nx.divide(1.0, keep_prob)
       input |> Nx.multiply(keep_mask) |> Nx.multiply(scale_factor)
     else
@@ -475,82 +475,82 @@ defmodule Example.Encoder do
 
     # Layer 1
     norm_attn_one = layer_norm(x)
-    attn_out_one = self_attention(norm_attn_one, one_w_query, one_w_key, one_w_value, one_w_out, attention_mask) |> dropout(key_one, training)
+    attn_out_one = self_attention(norm_attn_one, one_w_query, one_w_key, one_w_value, one_w_out, attention_mask) |> dropout(key_one, training, @dropout_rate)
     add_one = residual_connection(x, attn_out_one)
     norm_ffn_one = layer_norm(add_one)
-    ffn_out_one = feed_forward_network(norm_ffn_one, one_w1, one_b1, one_w2, one_b2) |> dropout(key_one_two, training)
+    ffn_out_one = feed_forward_network(norm_ffn_one, one_w1, one_b1, one_w2, one_b2) |> dropout(key_one_two, training, @dropout_rate)
     one = residual_connection(add_one, ffn_out_one)
 
     # Layer 2
     norm_attn_two = layer_norm(one)
-    attn_out_two = self_attention(norm_attn_two, two_w_query, two_w_key, two_w_value, two_w_out, attention_mask) |> dropout(key_two, training)
+    attn_out_two = self_attention(norm_attn_two, two_w_query, two_w_key, two_w_value, two_w_out, attention_mask) |> dropout(key_two, training, @dropout_rate)
     add_two = residual_connection(one, attn_out_two)
     norm_ffn_two = layer_norm(add_two)
-    ffn_out_two = feed_forward_network(norm_ffn_two, two_w1, two_b1, two_w2, two_b2) |> dropout(key_two_two, training)
+    ffn_out_two = feed_forward_network(norm_ffn_two, two_w1, two_b1, two_w2, two_b2) |> dropout(key_two_two, training, @dropout_rate)
     two = residual_connection(add_two, ffn_out_two)
 
     # Layer 3
     norm_attn_three = layer_norm(two)
-    attn_out_three = self_attention(norm_attn_three, three_w_query, three_w_key, three_w_value, three_w_out, attention_mask) |> dropout(key_three, training)
+    attn_out_three = self_attention(norm_attn_three, three_w_query, three_w_key, three_w_value, three_w_out, attention_mask) |> dropout(key_three, training, @dropout_rate)
     add_three = residual_connection(two, attn_out_three)
     norm_ffn_three = layer_norm(add_three)
-    ffn_out_three = feed_forward_network(norm_ffn_three, three_w1, three_b1, three_w2, three_b2) |> dropout(key_three_two, training)
+    ffn_out_three = feed_forward_network(norm_ffn_three, three_w1, three_b1, three_w2, three_b2) |> dropout(key_three_two, training, @dropout_rate)
     three = residual_connection(add_three, ffn_out_three)
 
     # Layer 4
     norm_attn_four = layer_norm(three)
-    attn_out_four = self_attention(norm_attn_four, four_w_query, four_w_key, four_w_value, four_w_out, attention_mask) |> dropout(key_four, training)
+    attn_out_four = self_attention(norm_attn_four, four_w_query, four_w_key, four_w_value, four_w_out, attention_mask) |> dropout(key_four, training, @dropout_rate)
     add_four = residual_connection(three, attn_out_four)
     norm_ffn_four = layer_norm(add_four)
-    ffn_out_four = feed_forward_network(norm_ffn_four, four_w1, four_b1, four_w2, four_b2) |> dropout(key_four_two, training)
+    ffn_out_four = feed_forward_network(norm_ffn_four, four_w1, four_b1, four_w2, four_b2) |> dropout(key_four_two, training, @dropout_rate)
     four = residual_connection(add_four, ffn_out_four)
 
     # Layer 5
     norm_attn_five = layer_norm(four)
-    attn_out_five = self_attention(norm_attn_five, five_w_query, five_w_key, five_w_value, five_w_out, attention_mask) |> dropout(key_five, training)
+    attn_out_five = self_attention(norm_attn_five, five_w_query, five_w_key, five_w_value, five_w_out, attention_mask) |> dropout(key_five, training, @dropout_rate)
     add_five = residual_connection(four, attn_out_five)
     norm_ffn_five = layer_norm(add_five)
-    ffn_out_five = feed_forward_network(norm_ffn_five, five_w1, five_b1, five_w2, five_b2) |> dropout(key_five_two, training)
+    ffn_out_five = feed_forward_network(norm_ffn_five, five_w1, five_b1, five_w2, five_b2) |> dropout(key_five_two, training, @dropout_rate)
     five = residual_connection(add_five, ffn_out_five)
 
     # Layer 6
     norm_attn_six = layer_norm(five)
-    attn_out_six = self_attention(norm_attn_six, six_w_query, six_w_key, six_w_value, six_w_out, attention_mask) |> dropout(key_six, training)
+    attn_out_six = self_attention(norm_attn_six, six_w_query, six_w_key, six_w_value, six_w_out, attention_mask) |> dropout(key_six, training, @dropout_rate)
     add_six = residual_connection(five, attn_out_six)
     norm_ffn_six = layer_norm(add_six)
-    ffn_out_six = feed_forward_network(norm_ffn_six, six_w1, six_b1, six_w2, six_b2) |> dropout(key_six_two, training)
+    ffn_out_six = feed_forward_network(norm_ffn_six, six_w1, six_b1, six_w2, six_b2) |> dropout(key_six_two, training, @dropout_rate)
     six = residual_connection(add_six, ffn_out_six)
 
     # Layer 7
     norm_attn_seven = layer_norm(six)
-    attn_out_seven = self_attention(norm_attn_seven, seven_w_query, seven_w_key, seven_w_value, seven_w_out, attention_mask) |> dropout(key_seven, training)
+    attn_out_seven = self_attention(norm_attn_seven, seven_w_query, seven_w_key, seven_w_value, seven_w_out, attention_mask) |> dropout(key_seven, training, @dropout_rate)
     add_seven = residual_connection(six, attn_out_seven)
     norm_ffn_seven = layer_norm(add_seven)
-    ffn_out_seven = feed_forward_network(norm_ffn_seven, seven_w1, seven_b1, seven_w2, seven_b2) |> dropout(key_seven_two, training)
+    ffn_out_seven = feed_forward_network(norm_ffn_seven, seven_w1, seven_b1, seven_w2, seven_b2) |> dropout(key_seven_two, training, @dropout_rate)
     seven = residual_connection(add_seven, ffn_out_seven)
 
     # Layer 8
     norm_attn_eight = layer_norm(seven)
-    attn_out_eight = self_attention(norm_attn_eight, eight_w_query, eight_w_key, eight_w_value, eight_w_out, attention_mask) |> dropout(key_eight, training)
+    attn_out_eight = self_attention(norm_attn_eight, eight_w_query, eight_w_key, eight_w_value, eight_w_out, attention_mask) |> dropout(key_eight, training, @dropout_rate)
     add_eight = residual_connection(seven, attn_out_eight)
     norm_ffn_eight = layer_norm(add_eight)
-    ffn_out_eight = feed_forward_network(norm_ffn_eight, eight_w1, eight_b1, eight_w2, eight_b2) |> dropout(key_eight_two, training)
+    ffn_out_eight = feed_forward_network(norm_ffn_eight, eight_w1, eight_b1, eight_w2, eight_b2) |> dropout(key_eight_two, training, @dropout_rate)
     eight = residual_connection(add_eight, ffn_out_eight)
 
     # Layer 9
     norm_attn_nine = layer_norm(eight)
-    attn_out_nine = self_attention(norm_attn_nine, nine_w_query, nine_w_key, nine_w_value, nine_w_out, attention_mask) |> dropout(key_nine, training)
+    attn_out_nine = self_attention(norm_attn_nine, nine_w_query, nine_w_key, nine_w_value, nine_w_out, attention_mask) |> dropout(key_nine, training, @dropout_rate)
     add_nine = residual_connection(eight, attn_out_nine)
     norm_ffn_nine = layer_norm(add_nine)
-    ffn_out_nine = feed_forward_network(norm_ffn_nine, nine_w1, nine_b1, nine_w2, nine_b2) |> dropout(key_nine_two, training)
+    ffn_out_nine = feed_forward_network(norm_ffn_nine, nine_w1, nine_b1, nine_w2, nine_b2) |> dropout(key_nine_two, training, @dropout_rate)
     nine = residual_connection(add_nine, ffn_out_nine)
 
     # Layer 10
     norm_attn_ten = layer_norm(nine)
-    attn_out_ten = self_attention(norm_attn_ten, ten_w_query, ten_w_key, ten_w_value, ten_w_out, attention_mask) |> dropout(key_ten, training)
+    attn_out_ten = self_attention(norm_attn_ten, ten_w_query, ten_w_key, ten_w_value, ten_w_out, attention_mask) |> dropout(key_ten, training, @dropout_rate)
     add_ten = residual_connection(nine, attn_out_ten)
     norm_ffn_ten = layer_norm(add_ten)
-    ffn_out_ten = feed_forward_network(norm_ffn_ten, ten_w1, ten_b1, ten_w2, ten_b2) |> dropout(key_ten_two, training)
+    ffn_out_ten = feed_forward_network(norm_ffn_ten, ten_w1, ten_b1, ten_w2, ten_b2) |> dropout(key_ten_two, training, @dropout_rate)
     ten = residual_connection(add_ten, ffn_out_ten)
 
     # Final LayerNorm
@@ -656,10 +656,15 @@ defmodule Example.Encoder do
 
           loss_value = Nx.to_number(example_loss)
 
+          Example.Deallocater.deep_deallocate(input_tensor)
+          Example.Deallocater.deep_deallocate(target_tensor)
+          Example.Deallocater.deep_deallocate(mask_pos_tensor)
+          Example.Deallocater.deep_deallocate(example_loss)
+
           # Important: Only deallocate the intermediate params, not the ones we'll return
           if params != epoch_params do
-            Nx.backend_deallocate(params)
-            Nx.backend_deallocate(opt_state)
+            Example.Deallocater.deep_deallocate(params)
+            Example.Deallocater.deep_deallocate(opt_state)
           end
 
           {next_idx + @batch_size, new_params, new_optimizer_state, acc_loss + loss_value}
@@ -702,6 +707,11 @@ defmodule Example.Encoder do
         File.write!("#{Path.dirname(__ENV__.file)}/bible_encoder_checkpoint_#{epoch}", checkpoint_container)
 
         IO.puts("Epoch #{epoch}, Train Loss: #{avg_epoch_loss}, Validation Loss: #{Nx.to_number(validation_loss)}")
+
+        Example.Deallocater.deep_deallocate(val_input_tensor)
+        Example.Deallocater.deep_deallocate(val_target_tensor)
+        Example.Deallocater.deep_deallocate(val_mask_pos_tensor)
+        Example.Deallocater.deep_deallocate(validation_loss)
       end
 
       {global_idx + steps_per_batch, final_epoch_params, final_opt_state}
@@ -774,7 +784,15 @@ defmodule Example.Encoder do
       end)
 
     percentage = matches / total * 100
-    Float.round(percentage, 2)
+    result = Float.round(percentage, 2)
+
+    Example.Deallocater.deep_deallocate(input_tensor)
+    Example.Deallocater.deep_deallocate(out_logits)
+    Example.Deallocater.deep_deallocate(all_logits)
+    Example.Deallocater.deep_deallocate(predicted_ids_tensor)
+    Example.Deallocater.deep_deallocate(keys)
+
+    result
   end
 
   def inf_preprocess_examples(examples, tokenizer) do
@@ -845,6 +863,11 @@ defmodule Example.Encoder do
       gradient = get_gradients(model_params, input_tensor, target_tensor, mask_pos_tensor, base_key)
 
       total_norm = calculate_gradient_norm(gradient) |> Nx.to_number()
+
+      Example.Deallocater.deep_deallocate(input_tensor)
+      Example.Deallocater.deep_deallocate(target_tensor)
+      Example.Deallocater.deep_deallocate(mask_pos_tensor)
+      Example.Deallocater.deep_deallocate(gradient)
 
       total_norm
     end)
