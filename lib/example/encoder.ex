@@ -1,11 +1,13 @@
 defmodule Example.Encoder do
   import Nx.Defn
 
-  @warmup_steps 17_200
+  @warmup_steps 18_240
   @batch_size 32
+  @val_batch_size 64
   @max_token_ids 100
-  @attn_dims 512
-  @num_heads 8
+  @attn_dims 768
+  @num_heads 12
+  @dropout_rate 0.15
   @pad_token_id 1
   @vocab_size 30_522
   @epsilon 1.0e-8
@@ -26,9 +28,9 @@ defmodule Example.Encoder do
     {:ok, tokenizer} = Tokenizers.Tokenizer.from_pretrained("bert-base-uncased")
 
     examples = get_examples()
-    {_, new_model, new_opt} = train(examples, tokenizer, num_epochs, base_learning_rate)
+    {_, new_model, _opt} = train(examples, tokenizer, num_epochs, base_learning_rate)
 
-    new_model_params = %{model: new_model, opt: new_opt}
+    new_model_params = %{model: new_model}
     new_serialized_container = Nx.serialize(new_model_params)
     File.write!("#{Path.dirname(__ENV__.file)}/warm_bible_encoder", new_serialized_container)
   end
@@ -167,7 +169,7 @@ defmodule Example.Encoder do
 
     {one_w1, one_b1, one_w2, one_b2, two_w1, two_b1, two_w2, two_b2, three_w1, three_b1, three_w2,
      three_b2, four_w1, four_b1, four_w2, four_b2, five_w1, five_b1, five_w2, five_b2, six_w1,
-     six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2, eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2, ten_w1, ten_b1, ten_w2, ten_b2}
+      six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2, eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2, ten_w1, ten_b1, ten_w2, ten_b2}
   end
 
   defn initialize_mlm_output_weights(opts \\ []) do
@@ -411,19 +413,59 @@ defmodule Example.Encoder do
     Nx.add(input, output)
   end
 
+  defn dropout(input, key, training) do
+    if training do
+      mask_shape = Nx.shape(input)
+      random_vals = Nx.Random.normal_split(key, 0.0, 1.0, shape: mask_shape)
+      keep_mask = Nx.greater(random_vals, @dropout_rate)
+      keep_prob = Nx.subtract(1.0, @dropout_rate)
+      scale_factor = Nx.divide(1.0, keep_prob)
+      input |> Nx.multiply(keep_mask) |> Nx.multiply(scale_factor)
+    else
+      input
+    end
+  end
+
   defn encoder_forward(
          {embeddings,
           {one_w_query, one_w_key, one_w_value, one_w_out, two_w_query, two_w_key, two_w_value,
            two_w_out, three_w_query, three_w_key, three_w_value, three_w_out, four_w_query,
            four_w_key, four_w_value, four_w_out, five_w_query, five_w_key, five_w_value,
            five_w_out, six_w_query, six_w_key, six_w_value, six_w_out, seven_w_query, seven_w_key,
-            seven_w_value, seven_w_out, eight_w_query, eight_w_key, eight_w_value, eight_w_out, nine_w_query, nine_w_key, nine_w_value, nine_w_out, ten_w_query, ten_w_key, ten_w_value, ten_w_out},
+            seven_w_value, seven_w_out, eight_w_query, eight_w_key, eight_w_value, eight_w_out, nine_w_query, nine_w_key, nine_w_value, nine_w_out,
+            ten_w_query, ten_w_key, ten_w_value, ten_w_out},
           {one_w1, one_b1, one_w2, one_b2, two_w1, two_b1, two_w2, two_b2, three_w1, three_b1,
            three_w2, three_b2, four_w1, four_b1, four_w2, four_b2, five_w1, five_b1, five_w2,
            five_b2, six_w1, six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2,
-            eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2, ten_w1, ten_b1, ten_w2, ten_b2}, _out_w, _out_b},
-         input_ids
+            eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2,
+            ten_w1, ten_b1, ten_w2, ten_b2}, _out_w, _out_b},
+          input_ids,
+          keys,
+          opts \\ []
        ) do
+    training = opts[:training]
+
+    key_one = keys[0]
+    key_one_two = keys[1]
+    key_two = keys[2]
+    key_two_two = keys[3]
+    key_three = keys[4]
+    key_three_two = keys[5]
+    key_four = keys[6]
+    key_four_two = keys[7]
+    key_five = keys[8]
+    key_five_two = keys[9]
+    key_six = keys[10]
+    key_six_two = keys[11]
+    key_seven = keys[12]
+    key_seven_two = keys[13]
+    key_eight = keys[14]
+    key_eight_two = keys[15]
+    key_nine = keys[16]
+    key_nine_two = keys[17]
+    key_ten = keys[18]
+    key_ten_two = keys[19]
+
     attention_mask = create_attention_mask(input_ids)
 
     word_embeddings = embeddings |> Nx.take(input_ids)
@@ -433,90 +475,93 @@ defmodule Example.Encoder do
 
     # Layer 1
     norm_attn_one = layer_norm(x)
-    attn_out_one = self_attention(norm_attn_one, one_w_query, one_w_key, one_w_value, one_w_out, attention_mask)
+    attn_out_one = self_attention(norm_attn_one, one_w_query, one_w_key, one_w_value, one_w_out, attention_mask) |> dropout(key_one, training)
     add_one = residual_connection(x, attn_out_one)
     norm_ffn_one = layer_norm(add_one)
-    ffn_out_one = feed_forward_network(norm_ffn_one, one_w1, one_b1, one_w2, one_b2)
+    ffn_out_one = feed_forward_network(norm_ffn_one, one_w1, one_b1, one_w2, one_b2) |> dropout(key_one_two, training)
     one = residual_connection(add_one, ffn_out_one)
 
     # Layer 2
     norm_attn_two = layer_norm(one)
-    attn_out_two = self_attention(norm_attn_two, two_w_query, two_w_key, two_w_value, two_w_out, attention_mask)
+    attn_out_two = self_attention(norm_attn_two, two_w_query, two_w_key, two_w_value, two_w_out, attention_mask) |> dropout(key_two, training)
     add_two = residual_connection(one, attn_out_two)
     norm_ffn_two = layer_norm(add_two)
-    ffn_out_two = feed_forward_network(norm_ffn_two, two_w1, two_b1, two_w2, two_b2)
+    ffn_out_two = feed_forward_network(norm_ffn_two, two_w1, two_b1, two_w2, two_b2) |> dropout(key_two_two, training)
     two = residual_connection(add_two, ffn_out_two)
 
     # Layer 3
     norm_attn_three = layer_norm(two)
-    attn_out_three = self_attention(norm_attn_three, three_w_query, three_w_key, three_w_value, three_w_out, attention_mask)
+    attn_out_three = self_attention(norm_attn_three, three_w_query, three_w_key, three_w_value, three_w_out, attention_mask) |> dropout(key_three, training)
     add_three = residual_connection(two, attn_out_three)
     norm_ffn_three = layer_norm(add_three)
-    ffn_out_three = feed_forward_network(norm_ffn_three, three_w1, three_b1, three_w2, three_b2)
+    ffn_out_three = feed_forward_network(norm_ffn_three, three_w1, three_b1, three_w2, three_b2) |> dropout(key_three_two, training)
     three = residual_connection(add_three, ffn_out_three)
 
     # Layer 4
     norm_attn_four = layer_norm(three)
-    attn_out_four = self_attention(norm_attn_four, four_w_query, four_w_key, four_w_value, four_w_out, attention_mask)
+    attn_out_four = self_attention(norm_attn_four, four_w_query, four_w_key, four_w_value, four_w_out, attention_mask) |> dropout(key_four, training)
     add_four = residual_connection(three, attn_out_four)
     norm_ffn_four = layer_norm(add_four)
-    ffn_out_four = feed_forward_network(norm_ffn_four, four_w1, four_b1, four_w2, four_b2)
+    ffn_out_four = feed_forward_network(norm_ffn_four, four_w1, four_b1, four_w2, four_b2) |> dropout(key_four_two, training)
     four = residual_connection(add_four, ffn_out_four)
 
     # Layer 5
     norm_attn_five = layer_norm(four)
-    attn_out_five = self_attention(norm_attn_five, five_w_query, five_w_key, five_w_value, five_w_out, attention_mask)
+    attn_out_five = self_attention(norm_attn_five, five_w_query, five_w_key, five_w_value, five_w_out, attention_mask) |> dropout(key_five, training)
     add_five = residual_connection(four, attn_out_five)
     norm_ffn_five = layer_norm(add_five)
-    ffn_out_five = feed_forward_network(norm_ffn_five, five_w1, five_b1, five_w2, five_b2)
+    ffn_out_five = feed_forward_network(norm_ffn_five, five_w1, five_b1, five_w2, five_b2) |> dropout(key_five_two, training)
     five = residual_connection(add_five, ffn_out_five)
 
     # Layer 6
     norm_attn_six = layer_norm(five)
-    attn_out_six = self_attention(norm_attn_six, six_w_query, six_w_key, six_w_value, six_w_out, attention_mask)
+    attn_out_six = self_attention(norm_attn_six, six_w_query, six_w_key, six_w_value, six_w_out, attention_mask) |> dropout(key_six, training)
     add_six = residual_connection(five, attn_out_six)
     norm_ffn_six = layer_norm(add_six)
-    ffn_out_six = feed_forward_network(norm_ffn_six, six_w1, six_b1, six_w2, six_b2)
+    ffn_out_six = feed_forward_network(norm_ffn_six, six_w1, six_b1, six_w2, six_b2) |> dropout(key_six_two, training)
     six = residual_connection(add_six, ffn_out_six)
 
     # Layer 7
     norm_attn_seven = layer_norm(six)
-    attn_out_seven = self_attention(norm_attn_seven, seven_w_query, seven_w_key, seven_w_value, seven_w_out, attention_mask)
+    attn_out_seven = self_attention(norm_attn_seven, seven_w_query, seven_w_key, seven_w_value, seven_w_out, attention_mask) |> dropout(key_seven, training)
     add_seven = residual_connection(six, attn_out_seven)
     norm_ffn_seven = layer_norm(add_seven)
-    ffn_out_seven = feed_forward_network(norm_ffn_seven, seven_w1, seven_b1, seven_w2, seven_b2)
+    ffn_out_seven = feed_forward_network(norm_ffn_seven, seven_w1, seven_b1, seven_w2, seven_b2) |> dropout(key_seven_two, training)
     seven = residual_connection(add_seven, ffn_out_seven)
 
     # Layer 8
     norm_attn_eight = layer_norm(seven)
-    attn_out_eight = self_attention(norm_attn_eight, eight_w_query, eight_w_key, eight_w_value, eight_w_out, attention_mask)
+    attn_out_eight = self_attention(norm_attn_eight, eight_w_query, eight_w_key, eight_w_value, eight_w_out, attention_mask) |> dropout(key_eight, training)
     add_eight = residual_connection(seven, attn_out_eight)
     norm_ffn_eight = layer_norm(add_eight)
-    ffn_out_eight = feed_forward_network(norm_ffn_eight, eight_w1, eight_b1, eight_w2, eight_b2)
+    ffn_out_eight = feed_forward_network(norm_ffn_eight, eight_w1, eight_b1, eight_w2, eight_b2) |> dropout(key_eight_two, training)
     eight = residual_connection(add_eight, ffn_out_eight)
 
     # Layer 9
     norm_attn_nine = layer_norm(eight)
-    attn_out_nine = self_attention(norm_attn_nine, nine_w_query, nine_w_key, nine_w_value, nine_w_out, attention_mask)
+    attn_out_nine = self_attention(norm_attn_nine, nine_w_query, nine_w_key, nine_w_value, nine_w_out, attention_mask) |> dropout(key_nine, training)
     add_nine = residual_connection(eight, attn_out_nine)
     norm_ffn_nine = layer_norm(add_nine)
-    ffn_out_nine = feed_forward_network(norm_ffn_nine, nine_w1, nine_b1, nine_w2, nine_b2)
+    ffn_out_nine = feed_forward_network(norm_ffn_nine, nine_w1, nine_b1, nine_w2, nine_b2) |> dropout(key_nine_two, training)
     nine = residual_connection(add_nine, ffn_out_nine)
 
     # Layer 10
     norm_attn_ten = layer_norm(nine)
-    attn_out_ten = self_attention(norm_attn_ten, ten_w_query, ten_w_key, ten_w_value, ten_w_out, attention_mask)
+    attn_out_ten = self_attention(norm_attn_ten, ten_w_query, ten_w_key, ten_w_value, ten_w_out, attention_mask) |> dropout(key_ten, training)
     add_ten = residual_connection(nine, attn_out_ten)
     norm_ffn_ten = layer_norm(add_ten)
-    ffn_out_ten = feed_forward_network(norm_ffn_ten, ten_w1, ten_b1, ten_w2, ten_b2)
+    ffn_out_ten = feed_forward_network(norm_ffn_ten, ten_w1, ten_b1, ten_w2, ten_b2) |> dropout(key_ten_two, training)
     ten = residual_connection(add_ten, ffn_out_ten)
 
     # Final LayerNorm
     layer_norm(ten)
   end
 
-  defn loss({_, _, _, out_w, out_b} = params, input_ids, target_tensor, mask_pos_tensor) do
-    out_logits = encoder_forward(params, input_ids)
+  defn loss({_, _, _, out_w, out_b} = params, input_ids, target_tensor, mask_pos_tensor, base_key, opts \\ []) do
+    training = opts[:training]
+    keys = Nx.Random.split(base_key, parts: 20)
+
+    out_logits = encoder_forward(params, input_ids, keys, training: training)
     all_logits = out_logits |> Nx.dot(out_w) |> Nx.add(out_b)
     {batch_size, seq_len, _} = Nx.shape(all_logits)
 
@@ -534,8 +579,8 @@ defmodule Example.Encoder do
     Nx.divide(sum_loss, safe_divisor)
   end
 
-  defn update(params, optimizer_state, input_ids, target_id, mask_pos, update_fn) do
-    {loss, gradient} = value_and_grad(params, &loss(&1, input_ids, target_id, mask_pos))
+  defn update(params, optimizer_state, input_ids, target_id, mask_pos, update_fn, base_key) do
+    {loss, gradient} = value_and_grad(params, &loss(&1, input_ids, target_id, mask_pos, base_key, training: true))
     {scaled_updates, new_optimizer_state} = update_fn.(gradient, optimizer_state, params)
     {Polaris.Updates.apply_updates(params, scaled_updates), new_optimizer_state, loss}
   end
@@ -606,7 +651,8 @@ defmodule Example.Encoder do
           padded_float_mask = pad_tokens(mask_pos, blocksize, 0.0)
           mask_pos_tensor = Nx.tensor(padded_float_mask)
 
-          {new_params, new_optimizer_state, example_loss} = update(params, opt_state, input_tensor, target_tensor, mask_pos_tensor, update_fn)
+          base_key = Nx.Random.key(next_idx)
+          {new_params, new_optimizer_state, example_loss} = update(params, opt_state, input_tensor, target_tensor, mask_pos_tensor, update_fn, base_key)
 
           loss_value = Nx.to_number(example_loss)
 
@@ -619,14 +665,16 @@ defmodule Example.Encoder do
           {next_idx + @batch_size, new_params, new_optimizer_state, acc_loss + loss_value}
         end)
 
+      base_key = Nx.Random.key(global_idx)
+
       if rem(epoch, 2) == 0 do
-        gradient_info = diagnose_learning_issues(final_epoch_params, shuffled_examples, tokenizer)
+        gradient_info = diagnose_learning_issues(final_epoch_params, shuffled_examples, base_key)
         gradient_info.mean_gradient_norm |> IO.inspect(label: "Epoch #{epoch} with Mean Gradient Norm", limit: :infinity)
       end
 
       if rem(epoch, 2) == 0 do
         shuffled_validation_examples = Enum.shuffle(validation_data)
-        validate_batch = Enum.take(shuffled_validation_examples, @batch_size)
+        validate_batch = Enum.take(shuffled_validation_examples, @val_batch_size)
 
         batch_id_list = validate_batch |> Enum.map(fn {ids, _, _} -> ids end)
         input_ids = pad_tokens(batch_id_list, blocksize, @pad_token_id)
@@ -640,7 +688,7 @@ defmodule Example.Encoder do
         padded_float_mask = pad_tokens(mask_pos, blocksize, 0.0)
         val_mask_pos_tensor = Nx.tensor(padded_float_mask)
 
-        validation_loss = loss(final_epoch_params, val_input_tensor, val_target_tensor, val_mask_pos_tensor)
+        validation_loss = loss(final_epoch_params, val_input_tensor, val_target_tensor, val_mask_pos_tensor, base_key, training: false)
 
         avg_epoch_loss = total_loss / length(batches)
 
@@ -649,9 +697,9 @@ defmodule Example.Encoder do
         eval_average |> IO.inspect(label: "Epoch #{epoch} with EVAL AVG", limit: :infinity)
 
         ## checkpoint
-        checkpoint_params = %{model: final_epoch_params, opt: final_opt_state}
+        checkpoint_params = %{model: final_epoch_params}
         checkpoint_container = Nx.serialize(checkpoint_params)
-        File.write!("#{Path.dirname(__ENV__.file)}/bible_encoder_checkpoint", checkpoint_container)
+        File.write!("#{Path.dirname(__ENV__.file)}/bible_encoder_checkpoint_#{epoch}", checkpoint_container)
 
         IO.puts("Epoch #{epoch}, Train Loss: #{avg_epoch_loss}, Validation Loss: #{Nx.to_number(validation_loss)}")
       end
@@ -697,7 +745,9 @@ defmodule Example.Encoder do
     mask_pos = batch |> Enum.map(fn {_, _, masked} -> masked end)
     padded_float_mask = pad_tokens(mask_pos, blocksize, 0.0)
 
-    out_logits = encoder_forward(params, input_tensor)
+    base_key = Nx.Random.key(1234)
+    keys = Nx.Random.split(base_key, parts: 20)
+    out_logits = encoder_forward(params, input_tensor, keys, training: false)
     all_logits = out_logits |> Nx.dot(out_w) |> Nx.add(out_b)
 
     predicted_ids_tensor = Nx.argmax(all_logits, axis: -1)
@@ -728,7 +778,7 @@ defmodule Example.Encoder do
   end
 
   def inf_preprocess_examples(examples, tokenizer) do
-    masking_probability = 0.10
+    masking_probability = 0.12
 
     examples
     |> Enum.with_index()
@@ -773,12 +823,12 @@ defmodule Example.Encoder do
     |> Enum.to_list()
   end
 
-  defn get_gradients(params, input_ids, target_id, mask_pos) do
-    {_, gradient} = value_and_grad(params, &loss(&1, input_ids, target_id, mask_pos))
+  defn get_gradients(params, input_ids, target_id, mask_pos, base_key) do
+    {_, gradient} = value_and_grad(params, &loss(&1, input_ids, target_id, mask_pos, base_key, training: true))
     gradient
   end
 
-  def diagnose_learning_issues(model_params, examples, _tokenizer) do
+  def diagnose_learning_issues(model_params, examples, base_key) do
     preprocessed = Enum.take(examples, @batch_size)
     blocksize = get_blocksize(preprocessed)
 
@@ -792,7 +842,7 @@ defmodule Example.Encoder do
       padded_float_mask = pad_tokens([mask_pos], blocksize, 0.0)
       mask_pos_tensor = Nx.tensor(padded_float_mask)
 
-      gradient = get_gradients(model_params, input_tensor, target_tensor, mask_pos_tensor)
+      gradient = get_gradients(model_params, input_tensor, target_tensor, mask_pos_tensor, base_key)
 
       total_norm = calculate_gradient_norm(gradient) |> Nx.to_number()
 
@@ -838,5 +888,18 @@ defmodule Example.Encoder do
           deep_reduce_gradients(grad_element, current_acc)
         end)
     end
+  end
+
+  def generate(params, text, tokenizer) do
+    {:ok, encoding} = Tokenizers.Tokenizer.encode(tokenizer, text)
+    bert_text_ids = Tokenizers.Encoding.get_ids(encoding)
+    pre_text_ids = Enum.slice(bert_text_ids, 1..-2//1)
+    text_ids = Enum.take(pre_text_ids, @max_token_ids)
+    blocksize = [text_ids] |> Enum.map(fn tokens -> length(tokens) end) |> Enum.max(fn -> 0 end)
+    input_ids = pad_tokens([text_ids], blocksize, @pad_token_id)
+    input_tensor = Nx.tensor(input_ids)
+    base_key = Nx.Random.key(1234)
+    keys = Nx.Random.split(base_key, parts: 20)
+    encoder_forward(params, input_tensor, keys, training: false)
   end
 end
