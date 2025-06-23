@@ -36,4 +36,44 @@ defmodule Example.Verse do
     )
     |> Example.Repo.all()
   end
+
+  def search_keywords(_document_id, term) do
+    sql = """
+    SELECT
+      bm.score,
+      bm.verse_id,
+      v.chapter,
+      v.verse,
+      bm.content as text,
+      v.book_id
+    FROM search_verses($1) bm
+    INNER JOIN verse_stats d ON d.verse_id = bm.verse_id
+    INNER JOIN verses v ON v.id = bm.verse_id
+    ORDER BY bm.score DESC;
+    """
+
+    case Ecto.Adapters.SQL.query(Example.Repo, sql, [term]) do
+      {:ok, %{rows: rows}} ->
+        Enum.map(rows, fn [score, verse_id, chapter, verse, text, book_id] ->
+          {score, {verse_id, chapter, verse, text, book_id}}
+        end)
+
+      {:error, _error} ->
+        []
+    end
+  end
+
+  def index_verses() do
+    sql = """
+    SELECT FROM index_all_verses()
+    """
+    Ecto.Adapters.SQL.query(Example.Repo, sql, [])
+  end
+
+  def reindex_verses() do
+    sql = """
+    SELECT FROM bulk_update_modified_verses()
+    """
+    Ecto.Adapters.SQL.query(Example.Repo, sql, [])
+  end
 end

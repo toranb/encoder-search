@@ -41,6 +41,10 @@ Example.Utils.seed("niv")
 Example.Utils.add_verse_embeddings()
 Example.Utils.add_verse_token_embeddings()
 
+# Index verses for BM25 search
+
+Example.Verse.index_verses()
+
 # Run the app and search
 
 iex -S mix phx.server
