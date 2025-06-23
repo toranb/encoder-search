@@ -33,7 +33,7 @@ defmodule Example.Utils do
     end)
   end
 
-  def add_embeddings() do
+  def add_verse_embeddings() do
     verses = Example.Verse |> Example.Repo.all()
     source_texts = verses |> Enum.map(fn verse -> verse.text end)
 
@@ -63,6 +63,49 @@ defmodule Example.Utils do
       verse
       |> Example.Verse.changeset(%{embedding: embedding})
       |> Example.Repo.update!()
+    end)
+  end
+
+  def add_verse_token_embeddings() do
+    verses = Example.Verse |> Example.Repo.all()
+    source_texts = verses |> Enum.map(fn verse -> verse.text end)
+
+    {:ok, tokenizer} = Tokenizers.Tokenizer.from_pretrained("bert-base-uncased")
+
+    model_data = File.read!("#{Path.dirname(__ENV__.file)}/bible_encoder")
+    deserialized_data = Nx.deserialize(model_data)
+    params = deserialized_data.model
+
+    serving =
+      Example.Generation.get_embeddings(params, tokenizer,
+        compile: [batch_size: 512, sequence_length: [@max_length]],
+        defn_options: [compiler: EXLA]
+      )
+
+    embeddings = Nx.Serving.run(serving, source_texts)
+
+    0..(length(embeddings) - 1)
+    |> Enum.map(fn i ->
+      verse = Enum.at(verses, i)
+      result = Enum.at(embeddings, i)
+      {verse, result.embedding}
+    end)
+    |> Enum.each(fn {verse, embedding} ->
+      {token_len, _dim} = Nx.shape(embedding)
+
+      0..(token_len - 1)
+      |> Enum.map(fn i ->
+        pos_embedding = Nx.slice(embedding, [i, 0], [1, 768]) |> Nx.to_flat_list()
+        %Example.VerseToken{}
+        |> Example.VerseToken.changeset(%{
+          verse_id: verse.id,
+          token_pos: i,
+          embedding: pos_embedding
+        })
+      end)
+      |> Enum.each(fn verse_token ->
+        verse_token |> Example.Repo.insert!()
+      end)
     end)
   end
 
