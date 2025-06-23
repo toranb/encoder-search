@@ -32,7 +32,7 @@ defmodule Example.Generation do
     batch_size = compile[:batch_size]
     sequence_length = compile[:sequence_length]
     base_key = Nx.Random.key(1234)
-    keys = Nx.Random.split(base_key, parts: 20)
+    keys = Nx.Random.split(base_key, parts: 22)
 
     embedding_fun = fn params, inputs ->
       output = Encoder.encoder_forward(params, inputs["input_ids"], keys, training: false)

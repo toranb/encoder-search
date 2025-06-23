@@ -1,13 +1,13 @@
 defmodule Example.Encoder do
   import Nx.Defn
 
-  @warmup_steps 18_240
-  @batch_size 32
+  @warmup_steps 21_420
+  @batch_size 64
   @val_batch_size 64
   @max_token_ids 100
   @attn_dims 768
   @num_heads 12
-  @dropout_rate 0.15
+  @dropout_rate 0.14
   @pad_token_id 1
   @vocab_size 30_522
   @epsilon 1.0e-8
@@ -116,6 +116,8 @@ defmodule Example.Encoder do
     nine_key_b = Nx.Random.key(685)
     ten_key_a = Nx.Random.key(777)
     ten_key_b = Nx.Random.key(778)
+    eleven_key_a = Nx.Random.key(877)
+    eleven_key_b = Nx.Random.key(878)
 
     one_w1 = Nx.Random.normal_split(one_key_a, 0.0, 0.02, shape: {input_dim, hidden_dim})
     one_b1 = Nx.broadcast(0.0, {hidden_dim})
@@ -167,9 +169,14 @@ defmodule Example.Encoder do
     ten_w2 = Nx.Random.normal_split(ten_key_b, 0.0, 0.02, shape: {hidden_dim, output_dim})
     ten_b2 = Nx.broadcast(0.0, {output_dim})
 
+    eleven_w1 = Nx.Random.normal_split(eleven_key_a, 0.0, 0.02, shape: {input_dim, hidden_dim})
+    eleven_b1 = Nx.broadcast(0.0, {hidden_dim})
+    eleven_w2 = Nx.Random.normal_split(eleven_key_b, 0.0, 0.02, shape: {hidden_dim, output_dim})
+    eleven_b2 = Nx.broadcast(0.0, {output_dim})
+
     {one_w1, one_b1, one_w2, one_b2, two_w1, two_b1, two_w2, two_b2, three_w1, three_b1, three_w2,
      three_b2, four_w1, four_b1, four_w2, four_b2, five_w1, five_b1, five_w2, five_b2, six_w1,
-      six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2, eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2, ten_w1, ten_b1, ten_w2, ten_b2}
+     six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2, eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2, ten_w1, ten_b1, ten_w2, ten_b2, eleven_w1, eleven_b1, eleven_w2, eleven_b2}
   end
 
   defn initialize_mlm_output_weights(opts \\ []) do
@@ -287,13 +294,24 @@ defmodule Example.Encoder do
     ten_w_value = Nx.Random.normal_split(ten_key_c, 0.0, 0.02, shape: {dims, attn_dims})
     ten_w_out = Nx.Random.normal_split(ten_key_d, 0.0, 0.02, shape: {attn_dims, dims})
 
+    eleven_key_a = Nx.Random.key(1181)
+    eleven_key_b = Nx.Random.key(1182)
+    eleven_key_c = Nx.Random.key(1183)
+    eleven_key_d = Nx.Random.key(1184)
+
+    eleven_w_query = Nx.Random.normal_split(eleven_key_a, 0.0, 0.02, shape: {dims, attn_dims})
+    eleven_w_key = Nx.Random.normal_split(eleven_key_b, 0.0, 0.02, shape: {dims, attn_dims})
+    eleven_w_value = Nx.Random.normal_split(eleven_key_c, 0.0, 0.02, shape: {dims, attn_dims})
+    eleven_w_out = Nx.Random.normal_split(eleven_key_d, 0.0, 0.02, shape: {attn_dims, dims})
+
     {one_w_query, one_w_key, one_w_value, one_w_out, two_w_query, two_w_key, two_w_value,
      two_w_out, three_w_query, three_w_key, three_w_value, three_w_out, four_w_query, four_w_key,
      four_w_value, four_w_out, five_w_query, five_w_key, five_w_value, five_w_out, six_w_query,
      six_w_key, six_w_value, six_w_out, seven_w_query, seven_w_key, seven_w_value, seven_w_out,
      eight_w_query, eight_w_key, eight_w_value, eight_w_out,
      nine_w_query, nine_w_key, nine_w_value, nine_w_out,
-     ten_w_query, ten_w_key, ten_w_value, ten_w_out}
+     ten_w_query, ten_w_key, ten_w_value, ten_w_out,
+     eleven_w_query, eleven_w_key, eleven_w_value, eleven_w_out}
   end
 
   deftransformp sqrt_2_over_pi() do
@@ -433,12 +451,13 @@ defmodule Example.Encoder do
            four_w_key, four_w_value, four_w_out, five_w_query, five_w_key, five_w_value,
            five_w_out, six_w_query, six_w_key, six_w_value, six_w_out, seven_w_query, seven_w_key,
             seven_w_value, seven_w_out, eight_w_query, eight_w_key, eight_w_value, eight_w_out, nine_w_query, nine_w_key, nine_w_value, nine_w_out,
-            ten_w_query, ten_w_key, ten_w_value, ten_w_out},
+            ten_w_query, ten_w_key, ten_w_value, ten_w_out,
+            eleven_w_query, eleven_w_key, eleven_w_value, eleven_w_out},
           {one_w1, one_b1, one_w2, one_b2, two_w1, two_b1, two_w2, two_b2, three_w1, three_b1,
            three_w2, three_b2, four_w1, four_b1, four_w2, four_b2, five_w1, five_b1, five_w2,
            five_b2, six_w1, six_b1, six_w2, six_b2, seven_w1, seven_b1, seven_w2, seven_b2,
             eight_w1, eight_b1, eight_w2, eight_b2, nine_w1, nine_b1, nine_w2, nine_b2,
-            ten_w1, ten_b1, ten_w2, ten_b2}, _out_w, _out_b},
+            ten_w1, ten_b1, ten_w2, ten_b2, eleven_w1, eleven_b1, eleven_w2, eleven_b2}, _out_w, _out_b},
           input_ids,
           keys,
           opts \\ []
@@ -465,6 +484,8 @@ defmodule Example.Encoder do
     key_nine_two = keys[17]
     key_ten = keys[18]
     key_ten_two = keys[19]
+    key_eleven = keys[20]
+    key_eleven_two = keys[21]
 
     attention_mask = create_attention_mask(input_ids)
 
@@ -553,13 +574,21 @@ defmodule Example.Encoder do
     ffn_out_ten = feed_forward_network(norm_ffn_ten, ten_w1, ten_b1, ten_w2, ten_b2) |> dropout(key_ten_two, training)
     ten = residual_connection(add_ten, ffn_out_ten)
 
+    # Layer 11
+    norm_attn_eleven = layer_norm(ten)
+    attn_out_eleven = self_attention(norm_attn_eleven, eleven_w_query, eleven_w_key, eleven_w_value, eleven_w_out, attention_mask) |> dropout(key_eleven, training)
+    add_eleven = residual_connection(ten, attn_out_eleven)
+    norm_ffn_eleven = layer_norm(add_eleven)
+    ffn_out_eleven = feed_forward_network(norm_ffn_eleven, eleven_w1, eleven_b1, eleven_w2, eleven_b2) |> dropout(key_eleven_two, training)
+    eleven = residual_connection(add_eleven, ffn_out_eleven)
+
     # Final LayerNorm
-    layer_norm(ten)
+    layer_norm(eleven)
   end
 
   defn loss({_, _, _, out_w, out_b} = params, input_ids, target_tensor, mask_pos_tensor, base_key, opts \\ []) do
     training = opts[:training]
-    keys = Nx.Random.split(base_key, parts: 20)
+    keys = Nx.Random.split(base_key, parts: 22)
 
     out_logits = encoder_forward(params, input_ids, keys, training: training)
     all_logits = out_logits |> Nx.dot(out_w) |> Nx.add(out_b)
@@ -656,8 +685,7 @@ defmodule Example.Encoder do
 
           loss_value = Nx.to_number(example_loss)
 
-          # Important: Only deallocate the intermediate params, not the ones we'll return
-          if params != epoch_params do
+          if next_idx > 0 do
             Nx.backend_deallocate(params)
             Nx.backend_deallocate(opt_state)
           end
@@ -689,6 +717,7 @@ defmodule Example.Encoder do
         val_mask_pos_tensor = Nx.tensor(padded_float_mask)
 
         validation_loss = loss(final_epoch_params, val_input_tensor, val_target_tensor, val_mask_pos_tensor, base_key, training: false)
+        val_loss_number = Nx.to_number(validation_loss)
 
         avg_epoch_loss = total_loss / length(batches)
 
@@ -701,7 +730,16 @@ defmodule Example.Encoder do
         checkpoint_container = Nx.serialize(checkpoint_params)
         File.write!("#{Path.dirname(__ENV__.file)}/bible_encoder_checkpoint_#{epoch}", checkpoint_container)
 
-        IO.puts("Epoch #{epoch}, Train Loss: #{avg_epoch_loss}, Validation Loss: #{Nx.to_number(validation_loss)}")
+        Nx.backend_deallocate(val_input_tensor)
+        Nx.backend_deallocate(val_target_tensor)
+        Nx.backend_deallocate(val_mask_pos_tensor)
+
+        IO.puts("Epoch #{epoch}, Train Loss: #{avg_epoch_loss}, Validation Loss: #{val_loss_number}")
+      end
+
+      if epoch_params != initial_params do
+        Nx.backend_deallocate(epoch_params)
+        Nx.backend_deallocate(optimizer_state)
       end
 
       {global_idx + steps_per_batch, final_epoch_params, final_opt_state}
@@ -746,7 +784,7 @@ defmodule Example.Encoder do
     padded_float_mask = pad_tokens(mask_pos, blocksize, 0.0)
 
     base_key = Nx.Random.key(1234)
-    keys = Nx.Random.split(base_key, parts: 20)
+    keys = Nx.Random.split(base_key, parts: 22)
     out_logits = encoder_forward(params, input_tensor, keys, training: false)
     all_logits = out_logits |> Nx.dot(out_w) |> Nx.add(out_b)
 
@@ -846,6 +884,8 @@ defmodule Example.Encoder do
 
       total_norm = calculate_gradient_norm(gradient) |> Nx.to_number()
 
+      Nx.backend_deallocate(gradient)
+
       total_norm
     end)
 
@@ -899,7 +939,7 @@ defmodule Example.Encoder do
     input_ids = pad_tokens([text_ids], blocksize, @pad_token_id)
     input_tensor = Nx.tensor(input_ids)
     base_key = Nx.Random.key(1234)
-    keys = Nx.Random.split(base_key, parts: 20)
+    keys = Nx.Random.split(base_key, parts: 22)
     encoder_forward(params, input_tensor, keys, training: false)
   end
 end
