@@ -9,7 +9,19 @@ defmodule ExampleWeb.PageLive do
   def mount(_, _, socket) do
     messages = []
     books = Example.Book |> Repo.all() |> Repo.preload(:verses)
-    socket = socket |> assign(path: nil, lookup: nil, books: books, messages: messages, text: nil, loading: false, selected: nil, focused: false)
+
+    {:ok, tokenizer} = Tokenizers.Tokenizer.from_pretrained("bert-base-uncased")
+    model_data = File.read!("#{Path.dirname(__ENV__.file)}/bible_encoder")
+    deserialized_data = Nx.deserialize(model_data)
+    params = deserialized_data.model
+
+    serving =
+      Example.Generation.get_embeddings(params, tokenizer,
+        compile: [batch_size: 512, sequence_length: [@max_length]],
+        defn_options: [compiler: EXLA]
+      )
+
+    socket = socket |> assign(serving: serving, path: nil, lookup: nil, books: books, messages: messages, text: nil, loading: false, selected: nil, focused: false)
 
     {:ok, socket}
   end
@@ -47,27 +59,18 @@ defmodule ExampleWeb.PageLive do
   def handle_event("add_message", %{"message" => search}, socket) do
     messages = socket.assigns.messages
     selected = socket.assigns.selected
+    serving = socket.assigns.serving
 
     message_id = Ecto.UUID.generate()
     new_messages = messages ++ [%{id: message_id, user_id: 1, text: search, inserted_at: DateTime.utc_now(), book_id: selected.id}]
 
     lookup =
       Task.async(fn ->
-        {:ok, tokenizer} = Tokenizers.Tokenizer.from_pretrained("bert-base-uncased")
-        model_data = File.read!("#{Path.dirname(__ENV__.file)}/bible_encoder")
-        deserialized_data = Nx.deserialize(model_data)
-        params = deserialized_data.model
-
-        serving =
-          Example.Generation.get_embeddings(params, tokenizer,
-            output_pool: :mean_pooling,
-            embedding_processor: :l2_norm,
-            compile: [batch_size: 512, sequence_length: [@max_length]],
-            defn_options: [compiler: EXLA]
-          )
-
-        result = Nx.Serving.run(serving, search)
-        results = Example.Verse.search(selected.id, result.embedding)
+        encoder_result = Nx.Serving.run(serving, search)
+        bm25_results = Example.Verse.search_keywords(selected.id, search)
+        verse_ids = bm25_results |> Enum.map(fn {_, {verse_id, _, _, _, _}} -> verse_id end)
+        colbert_results = Example.VerseToken.search(verse_ids, encoder_result.embedding)
+        results = Example.Rank.rank_results(bm25_results, colbert_results, :weighted_sum, 0.7)
 
         {search, results}
       end)
@@ -76,11 +79,11 @@ defmodule ExampleWeb.PageLive do
   end
 
   @impl true
-  def handle_info({ref, {search, results}}, socket) when socket.assigns.lookup.ref == ref do
+  def handle_info({ref, {_search, results}}, socket) when socket.assigns.lookup.ref == ref do
     messages = socket.assigns.messages
     selected = socket.assigns.selected
 
-    [{_, chapter, verse, text, book_id}] = results |> Enum.take(1)
+    [{_, {_, chapter, verse, text, book_id}}] = results |> Enum.take(1)
     book_name = Example.Utils.book_name(book_id)
     result = "#{book_name} #{chapter}:#{verse}\n#{text}"
     message_id = Ecto.UUID.generate()
