@@ -15,13 +15,21 @@ defmodule ExampleWeb.PageLive do
     deserialized_data = Nx.deserialize(model_data)
     params = deserialized_data.model
 
+    avg =
+      Example.Generation.get_embeddings(params, tokenizer,
+        output_pool: :mean_pooling,
+        embedding_processor: :l2_norm,
+        compile: [batch_size: 512, sequence_length: [@max_length]],
+        defn_options: [compiler: EXLA]
+      )
+
     serving =
       Example.Generation.get_embeddings(params, tokenizer,
         compile: [batch_size: 512, sequence_length: [@max_length]],
         defn_options: [compiler: EXLA]
       )
 
-    socket = socket |> assign(serving: serving, path: nil, lookup: nil, books: books, messages: messages, text: nil, loading: false, selected: nil, focused: false)
+    socket = socket |> assign(avg: avg, serving: serving, path: nil, lookup: nil, books: books, messages: messages, text: nil, loading: false, selected: nil, focused: false)
 
     {:ok, socket}
   end
@@ -57,6 +65,7 @@ defmodule ExampleWeb.PageLive do
 
   @impl true
   def handle_event("add_message", %{"message" => search}, socket) do
+    avg = socket.assigns.avg
     messages = socket.assigns.messages
     selected = socket.assigns.selected
     serving = socket.assigns.serving
@@ -66,10 +75,14 @@ defmodule ExampleWeb.PageLive do
 
     lookup =
       Task.async(fn ->
+        mean_search = Nx.Serving.run(avg, search)
+        mean_results = Example.Verse.search(selected.id, mean_search.embedding)
+        verse_ids = mean_results |> Enum.map(fn {verse_id, _, _, _, _} -> verse_id end)
+
         encoder_result = Nx.Serving.run(serving, search)
-        bm25_results = Example.Verse.search_keywords(selected.id, search)
-        verse_ids = bm25_results |> Enum.map(fn {_, {verse_id, _, _, _, _}} -> verse_id end)
         colbert_results = Example.VerseToken.search(verse_ids, encoder_result.embedding)
+
+        bm25_results = Example.Verse.search_keywords(selected.id, search)
         results = Example.Rank.rank_results(bm25_results, colbert_results, :weighted_sum, 0.7)
 
         {search, results}
@@ -83,11 +96,18 @@ defmodule ExampleWeb.PageLive do
     messages = socket.assigns.messages
     selected = socket.assigns.selected
 
-    [{_, {_, chapter, verse, text, book_id}}] = results |> Enum.take(1)
-    book_name = Example.Utils.book_name(book_id)
-    result = "#{book_name} #{chapter}:#{verse}\n#{text}"
-    message_id = Ecto.UUID.generate()
-    new_messages = messages ++ [%{id: message_id, user_id: 2, text: result, inserted_at: DateTime.utc_now(), book_id: selected.id}]
+    top_results =
+      results
+      |> Enum.take(10)
+      |> Enum.map(fn {score, {_, chapter, verse, text, book_id}} ->
+        message_id = Ecto.UUID.generate()
+        book_name = Example.Utils.book_name(book_id)
+        result = "#{book_name} #{chapter}:#{verse}\n#{text}"
+        %{id: message_id, user_id: 2, text: result, inserted_at: DateTime.utc_now(), book_id: selected.id, score: score}
+      end)
+      |> Enum.filter(& &1.score > 0.44)
+
+    new_messages = messages ++ top_results
 
     {:noreply, assign(socket, lookup: nil, loading: false, messages: new_messages)}
   end

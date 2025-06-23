@@ -32,7 +32,7 @@ defmodule Example.Verse do
       select: {v.id, v.chapter, v.verse, v.text, v.book_id},
       where: v.book_id == ^book_id,
       order_by: cosine_distance(v.embedding, ^embedding),
-      limit: 4
+      limit: 25
     )
     |> Example.Repo.all()
   end

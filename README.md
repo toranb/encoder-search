@@ -35,9 +35,21 @@ Example.Prep.shuffle()
 
 Example.Encoder.scheduled(280, 0.00017)
 
+# Prepare the NLT dataset
+
+curl https://bolls.life/static/translations/NLT.json > nlt.json
+Example.Dataset.gen_bible("nlt")
+
+## vim find/replace
+%s/<br>/ /g
+%s/<i>\(.\{-}\)<\/i>/\1/g
+%s/’/'/g
+%s/‘/'/g
+
 # Seed the database from a given text
 
-Example.Utils.seed("niv")
+Example.Utils.seed("nlt")
+Example.Utils.add_verse_embeddings()
 Example.Utils.add_verse_token_embeddings()
 
 # Index verses for BM25 search
