@@ -33,12 +33,11 @@ Example.Prep.shuffle()
 
 # Training
 
-Example.Encoder.scheduled(100, 0.00007)
+Example.Encoder.scheduled(280, 0.00017)
 
 # Seed the database from a given text
 
 Example.Utils.seed("niv")
-Example.Utils.add_verse_embeddings()
 Example.Utils.add_verse_token_embeddings()
 
 # Index verses for BM25 search

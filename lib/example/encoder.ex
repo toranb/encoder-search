@@ -1,13 +1,13 @@
 defmodule Example.Encoder do
   import Nx.Defn
 
-  @warmup_steps 21_420
+  @warmup_steps 12_420
   @batch_size 64
-  @val_batch_size 64
-  @max_token_ids 100
+  @val_batch_size 128
+  @max_token_ids 104
   @attn_dims 768
   @num_heads 12
-  @dropout_rate 0.14
+  @dropout_rate 0.143
   @pad_token_id 1
   @vocab_size 30_522
   @epsilon 1.0e-8
@@ -36,11 +36,12 @@ defmodule Example.Encoder do
   end
 
   def preprocess_examples(examples, tokenizer) do
-    masking_probability = 0.15
+    masking_probability = 0.22
 
     examples
     |> Enum.with_index()
-    |> Enum.map(fn {{text, _}, _index} ->
+    |> Enum.map(fn {{rawtext, _}, _index} ->
+      text = String.downcase(rawtext)
       {:ok, encoding} = Tokenizers.Tokenizer.encode(tokenizer, text)
       bert_text_ids = Tokenizers.Encoding.get_ids(encoding)
       pre_text_ids = Enum.slice(bert_text_ids, 1..-2//1)
