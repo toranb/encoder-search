@@ -1,11 +1,7 @@
 defmodule Example.VerseToken do
   use Ecto.Schema
 
-  import Ecto.Query
   import Ecto.Changeset
-  import Pgvector.Ecto.Query
-
-  alias __MODULE__
 
   schema "verse_tokens" do
     field(:token_pos, :integer)
@@ -25,19 +21,21 @@ defmodule Example.VerseToken do
   end
 
   def search(verse_ids, embeddings, opts \\ []) do
-    id_list =
+    id_filter =
       case verse_ids do
         [] -> nil
-        ids -> ids |> Enum.map(&to_string/1) |> Enum.join(",")
+
+        ids ->
+          id_list = ids |> Enum.map(&to_string/1) |> Enum.join(",")
+          "v.id IN (#{id_list})"
       end
 
-    id_filter = "v.id IN (#{id_list})"
     opts = Keyword.put(opts, :candidate_filter, id_filter)
     colbert_search(embeddings, opts)
   end
 
   def colbert_search(embeddings, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 10)
+    limit = Keyword.get(opts, :limit, 20)
     candidate_filter = Keyword.get(opts, :candidate_filter, nil)
 
     query_embeddings =
